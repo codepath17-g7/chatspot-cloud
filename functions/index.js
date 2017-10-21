@@ -9,6 +9,7 @@ exports.userLocationUpdate = functions.database.ref('/users/{userId}/location')
     .onWrite(event => {
       const userCord = event.data.val();
       const uid = event.params.userId;
+      const dataBase = admin.database()
 
       admin.database().ref('/chatrooms').once("value", function(data) {
           var rooms = data.val();
@@ -27,10 +28,23 @@ exports.userLocationUpdate = functions.database.ref('/users/{userId}/location')
               console.log('distance: ', roomId, dist);
           });
 
+          console.log('userId: ', uid);
+
           if(roomToJoin !== "") {
-              console.log('joining room: ', roomToJoin);
-              console.log('userId: ', uid);
-              admin.database().ref('/chatrooms/' + roomToJoin).child('users').child(uid).set(true);
+              const aroundMeRef = dataBase.ref('/users/' + uid +'/aroundMe')
+              aroundMeRef.once("value", function(data) {
+                   roomToLeave = data.val()
+				    if(roomToLeave != "") {
+					    console.log('Leavinglocal room: ', roomToLeave);
+                        nodeToRemove = dataBase.ref('/chatrooms/' + roomToLeave + '/localUsers').child(uid)
+                        const updates = {}
+                        updates[nodeToRemove.key] = null
+                        nodeToRemove.parent.update(updates)
+					}
+					console.log('Joining local room: ', roomToJoin);
+                    dataBase.ref('/chatrooms/' + roomToJoin + '/localUsers').child(uid).set(true)
+                    aroundMeRef.set(roomToJoin)
+              })
           }
       });
 
