@@ -12,7 +12,7 @@ exports.userLocationUpdate = functions.database.ref('/users/{userId}/location')
     const uid = event.params.userId;
     console.log('userId: ', uid);
 
-    return admin.database().ref('/chatrooms').once("value").then(function(data) {
+    return dataBase.ref('/chatrooms').once("value").then(function(data) {
         var rooms = data.val();
         var maxDist = 1000000; // some very very large number
         var roomToJoin = "";
@@ -52,17 +52,33 @@ exports.userLocationUpdate = functions.database.ref('/users/{userId}/location')
                 })
             }
         });
-        // return event.data.ref.parent.child('location').set(event.data.val());
     });
 
-exports.newMessage = functions.database.ref('/messages/{roomId}')
+exports.newMessage = functions.database.ref('/messages/{roomId}/{messageId}')
 .onCreate(event => {
+    const dataBase = admin.database()
     const message = event.data.val();
-    console.log('roomId: ', roomId);
+    // const uid = event.params.userId;
+    const roomId = event.params.roomId
+    const messageId = event.params.messageId
+
+    console.log('roomId: ' + roomId + ' messageId ', messageId);
     console.log('message: ', message);
-    console.log('ref: ', event.data.ref);
 
     // write message to around me stream of other localUsers in that room
+    return dataBase.ref('/chatrooms/'+roomId+'/localUsers').once("value").then(function(localUsers) {
+        const updates = []
+        console.log('localUsers: ', localUsers.val());
+        if (!localUsers.exists() || localUsers.numChildren()==0) {
+            console.log('No local users')
+            return;
+        }
 
-    //return event.data.ref.parent.child(roomId).set(event.data.val());
+        localUsers.forEach(function(localUser){
+            console.log('Adding to : ', localUser.key);
+            updates.push(dataBase.ref('aroundme/'+localUser.key).child(messageId).set(message))
+            return Promise.all(updates)
+        });
+
+    });
 });
