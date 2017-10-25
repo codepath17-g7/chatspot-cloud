@@ -54,7 +54,7 @@ exports.userLocationUpdate = functions.database.ref('/users/{userId}/location')
                     console.log('Writing system message', roomToJoin.name);
                     var newMessageRef = dataBase.ref('aroundme/'+uid).push()
                     systemMessagePromise = newMessageRef.set ({
-                        message: "You are now in " + roomToJoin.name,
+                        message: roomToJoin.name,
                         system: true
                     })
 
