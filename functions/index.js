@@ -5,6 +5,42 @@ var geodist = require('geodist')
 
 admin.initializeApp(functions.config().firebase);
 
+function joinRoom(userIdToJoin, roomId, roomName) {
+    var leaveRoomPromise = false;
+    const dataBase = admin.database()
+
+    const aroundMeRef = dataBase.ref('/users/' + userIdToJoin +'/aroundMe')
+    return aroundMeRef.once("value").then(function(data) {
+        roomToLeave = data.val()
+        if (roomToLeave == roomId) {
+            console.log('Already in room: ', roomId);
+            return
+        }
+        leaveRoomPromise = false
+        if(roomToLeave != "") {
+            console.log('Leaving local room: ', roomToLeave);
+            nodeToRemove = dataBase.ref('/chatrooms/' + roomToLeave + '/localUsers').child(userIdToJoin)
+            const updates = {}
+            updates[nodeToRemove.key] = null
+            leaveRoomPromise = nodeToRemove.parent.update(updates)
+        } else {
+            console.log('No room to leave')
+        }
+        console.log('Joining local room: ', roomId, roomName);
+        dataBase.ref('/chatrooms/' + roomId + '/localUsers').child(userIdToJoin).set(true)
+        joinRoomPromise = aroundMeRef.set(roomId)
+
+        console.log('Writing system message', roomName);
+        var newMessageRef = dataBase.ref('aroundme/'+userIdToJoin).push()
+        systemMessagePromise = newMessageRef.set ({
+            message: roomName,
+            system: true
+        });
+
+        return Promise.all([joinRoomPromise, leaveRoomPromise, systemMessagePromise])
+    });
+}
+
 exports.userLocationUpdate = functions.database.ref('/users/{userId}/location')
 .onWrite(event => {
     const dataBase = admin.database()
@@ -14,7 +50,7 @@ exports.userLocationUpdate = functions.database.ref('/users/{userId}/location')
 
     return dataBase.ref('/chatrooms').once("value").then(function(data) {
         var rooms = data.val();
-        var maxDist = 1000000; // some very very large number
+        var maxDist = 1; // some very very large number
         var roomGuidToJoin = "";
         var roomToJoin;
         _.map(rooms, function(roomObj, roomId) {
@@ -31,34 +67,53 @@ exports.userLocationUpdate = functions.database.ref('/users/{userId}/location')
                 console.log('distance: ', roomId, dist);
             });
 
+
+
             if(roomGuidToJoin !== "") {
+                return joinRoom(uid, roomGuidToJoin, roomToJoin.name)
+            } else {
+                console.log('No room near by, checking users')
+                var userIdToJoin = "";
+                var userToJoin;
 
-                const aroundMeRef = dataBase.ref('/users/' + uid +'/aroundMe')
-                aroundMeRef.once("value").then(function(data) {
-                    var leaveRoomPromise = false;
+                // check for other users
+                return dataBase.ref('/users').once("value").then(function(data) {
+                    var users = data.val()
+                    _.map(users, function(userObj, userId) {
+                        console.log('User ', userObj.location.lat, userObj.location.long)
+                        if (uid == userId) {
+                            console.log('Ignoring self ')
+                        } else {
+                            var dist = geodist({lat:userCord.lat , lon: userCord.long},
+                                {lat:userObj.location.lat, lon: userObj.location.long},
+                                {unit: 'mi'});
+                            console.log('Distance ',userId, dist)
 
-                    roomToLeave = data.val()
-                    if(roomToLeave != "") {
-                        console.log('Leaving local room: ', roomToLeave);
-                        nodeToRemove = dataBase.ref('/chatrooms/' + roomToLeave + '/localUsers').child(uid)
-                        const updates = {}
-                        updates[nodeToRemove.key] = null
-                        leaveRoom = nodeToRemove.parent.update(updates)
+                            if(dist < maxDist) {
+                                maxDist = dist;
+                                userIdToJoin = userId;
+                                userToJoin = userObj
+                            }
+                        }
+                    });
+                    console.log('Joining ', userIdToJoin, userToJoin)
+                    if (userIdToJoin != "") {
+                        // create the room
+                        newRoomRef = dataBase.ref("chatrooms").push()
+                        newRoomDetail = {}
+                        newRoomDetail.name = "Halfmoon Bay" // to do find good name
+                        newRoomDetail.localUsers = {}
+                        newRoomDetail.localUsers[uid] = true
+                        newRoomDetail.localUsers[userIdToJoin] = true
+                        newRoomDetail.longitude = userCord.long
+                        newRoomDetail.latitude = userCord.lat
+                        console.log('New Room ', newRoomRef.key, newRoomDetail)
+                        newRoomPromise = newRoomRef.set(newRoomDetail)
+
+                        user1Promise = joinRoom(uid, newRoomRef.key, newRoomDetail.name)
+                        user2Promise = joinRoom(userIdToJoin, newRoomRef.key, newRoomDetail.name)
+                        return Promise.all([newRoomPromise, user1Promise, user2Promise])
                     }
-
-                    console.log('Joining local room: ', roomGuidToJoin, roomToJoin.name);
-                    dataBase.ref('/chatrooms/' + roomGuidToJoin + '/localUsers').child(uid).set(true)
-                    joinRoomPromise = aroundMeRef.set(roomGuidToJoin)
-
-
-                    console.log('Writing system message', roomToJoin.name);
-                    var newMessageRef = dataBase.ref('aroundme/'+uid).push()
-                    systemMessagePromise = newMessageRef.set ({
-                        message: roomToJoin.name,
-                        system: true
-                    })
-
-                    return Promise.all([leaveRoomPromise, joinRoomPromise, systemMessagePromise])
                 })
             }
         });
