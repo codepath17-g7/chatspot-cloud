@@ -102,6 +102,7 @@ exports.userLocationUpdate = functions.database.ref('/users/{userId}/location')
                         newRoomRef = dataBase.ref("chatrooms").push()
                         newRoomDetail = {}
                         newRoomDetail.name = "Halfmoon Bay" // to do find good name
+                        newRoomDetail.banner = "https://firebasestorage.googleapis.com/v0/b/chatspot-ab2bf.appspot.com/o/chatRoomBanners%2Fhalfmoonbay%20small.jpeg?alt=media&token=846b7619-70be-434a-8bc0-9f0bc6e8ec12"
                         newRoomDetail.localUsers = {}
                         newRoomDetail.localUsers[uid] = true
                         newRoomDetail.localUsers[userIdToJoin] = true
