@@ -80,10 +80,10 @@ exports.userLocationUpdate = functions.database.ref('/users/{userId}/location')
                 return dataBase.ref('/users').once("value").then(function(data) {
                     var users = data.val()
                     _.map(users, function(userObj, userId) {
-                        console.log('User ', userObj.location.lat, userObj.location.long)
-                        if (uid == userId) {
-                            console.log('Ignoring self ')
+                        if (uid == userId || typeof userObj.location == 'undefined' || typeof userObj.location.lat == 'undefined') {
+                            console.log('Ignoring ', userId)
                         } else {
+                            console.log('User ', userObj.location.lat, userObj.location.long)
                             var dist = geodist({lat:userCord.lat , lon: userCord.long},
                                 {lat:userObj.location.lat, lon: userObj.location.long},
                                 {unit: 'mi'});
